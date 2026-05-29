@@ -1,0 +1,132 @@
+universal_metrics:
+
+  General:
+    - All Players Season__Minutes Played
+    - All Players Season__Appearances
+    - All Players Season__Points
+
+  Attack:
+    - All Players Season__Carries
+    - All Players Season__Carry Metres Made
+    - All Players Season__Post Contact Metres
+    - All Players Season__Offload
+    - All Players Season__Try Scored
+    - All Players Season__Try Assist
+
+  Defence:
+    - Tackles__Total Attempted Tackles
+    - Tackles__Percent Tackle Made
+    - Tackles__Dominant Tackle Percent
+
+  Breakdown:
+    - Ruck Entries__Attacking Ruck Entries
+    - Ruck Entries__Defensive Ruck Entries
+
+  Discipline:
+    - Pens Conceded__Penalty Conceded
+    - Pens Conceded__Yellow Card
+    - Pens Conceded__Red Card
+
+  Error Rate:
+    - Turnover Conceded__Percent Unforced
+    - Turnover Conceded__Handling Error
+
+
+position_groups:
+
+  fly-half:
+    positions: ["fly-half"]
+    metrics:
+      Kicking:
+        - Kicks__Kicks In Play
+        - Kicks__Total Kick In Play Metres
+        - Kicks__Fifty Twenty Two Kick
+        - All Players Season__Percent Goals
+
+  fullback:
+    positions: ["fullback"]
+    metrics:
+      Kicking:
+        - Kicks__Kicks In Play
+        - Kicks__Total Kick In Play Metres
+        - Kicks__Fifty Twenty Two Kick
+        - All Players Season__Percent Goals
+
+  centre:
+    positions: ["centre"]
+    metrics:
+      Kicking:
+        - Kicks__Kicks In Play
+        - Kicks__Total Kick In Play Metres
+        - Kicks__Fifty Twenty Two Kick
+        - All Players Season__Percent Goals
+
+  wing:
+    positions: ["wing"]
+    metrics:
+      Kicking:
+        - Kicks__Kicks In Play
+        - Kicks__Total Kick In Play Metres
+        - Kicks__Fifty Twenty Two Kick
+        - All Players Season__Percent Goals
+
+  scrum-half:
+    positions: ["scrum-half"]
+    metrics:
+      Kicking:
+        - Kicks__Kicks In Play
+        - Kicks__Total Kick In Play Metres
+        - Kicks__Fifty Twenty Two Kick
+        - All Players Season__Percent Goals
+
+  hooker:
+    positions: ["hooker"]
+    metrics:
+      Set Piece:
+        - Lineout Throws__Total Lineout Throws
+        - Lineout Throws__Lineout Throws Won Percent
+        - Lineout Throws__Throw Back
+        - Lineout Throws__Throw Front
+        - Lineout Throws__Throw Middle
+
+  prop:
+    positions: ["prop"]
+    metrics:
+      Discipline:
+        - Pens Conceded__Scrum Offence
+
+  number-8:
+    positions: ["number 8", "no. 8", "8"]
+    metrics:
+      Set Piece:
+        - Lineout Catch__Lo Contest Clean Catch
+        - Lineout Catch__Lo Contest Steal
+      Breakdown:
+        - Turnover Won__Jackal Penalty Won
+        - Turnover Won__Jackal Turnover Won
+      Defence:
+        - Turnover Won__Tackle Turnover Won
+
+  flanker:
+    positions: ["flanker"]
+    metrics:
+      Set Piece:
+        - Lineout Catch__Lo Contest Clean Catch
+        - Lineout Catch__Lo Contest Steal
+      Breakdown:
+        - Turnover Won__Jackal Penalty Won
+        - Turnover Won__Jackal Turnover Won
+      Defence:
+        - Turnover Won__Tackle Turnover Won
+
+  lock:
+    positions: ["lock"]
+    metrics:
+      Set Piece:
+        - Lineout Catch__Lo Contest Clean Catch
+        - Lineout Catch__Lo Contest Steal
+      Breakdown:
+        - Turnover Won__Jackal Penalty Won
+        - Turnover Won__Jackal Turnover Won
+      Defence:
+        - Turnover Won__Tackle Turnover Won
