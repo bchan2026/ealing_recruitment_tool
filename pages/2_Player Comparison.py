@@ -37,10 +37,10 @@ html, body, [class*="css"] {
     font-family: 'Garamond', serif;
     font-weight: 600;
     color: #FAFAFA;
+}
 :root {
     --primary: #006400;   /* Dark Green */
 }
-
 body { background-color: var(--bg-dark); }
 .block-container { padding-top: 1.5rem; }
 .neon-card {
@@ -48,10 +48,7 @@ body { background-color: var(--bg-dark); }
     padding: 20px;
     border-radius: 12px;
     border: 1px solid rgba(255,255,255,0.15);
-:root {
-    --primary: #006400;   /* Dark Green */
 }
-
 hr { border: 1px solid rgba(255,255,255,0.15); }
 </style>
 """, unsafe_allow_html=True)
@@ -204,7 +201,43 @@ if len(selected) < 2:
     st.info("Select at least two players.")
     st.stop()
 
-df_sel = players[players["player"].isin(selected)].set_index("player")
+# ---------------------------------------------------------
+# COLLAPSE MULTI‑COMPETITION PLAYERS (BY player_id IF AVAILABLE)
+# ---------------------------------------------------------
+
+df_sel_raw = players[players["player"].isin(selected)].copy()
+
+group_key = "player_id" if "player_id" in df_sel_raw.columns else "player"
+
+numeric_cols = df_sel_raw.select_dtypes(include="number").columns.tolist()
+
+percentage_cols = [
+    c
+    for c in numeric_cols
+    if ("%" in c) or ("percent" in c.lower()) or ("rate" in c.lower())
+]
+sum_cols = [c for c in numeric_cols if c not in percentage_cols]
+
+agg_dict = {}
+
+# Identity / categorical columns
+for col in ["player", "team", "league", "position"]:
+    if col in df_sel_raw.columns:
+        agg_dict[col] = "first"
+
+# Numeric aggregation
+for col in sum_cols:
+    agg_dict[col] = "sum"
+for col in percentage_cols:
+    agg_dict[col] = "mean"
+
+df_sel = (
+    df_sel_raw.groupby(group_key, as_index=False)
+    .agg(agg_dict)
+)
+
+# Use player name as index for display
+df_sel = df_sel.set_index("player")
 
 # ---------------------------------------------------------
 # RADAR CHART (THEME‑ADAPTIVE + SAFE)
@@ -212,9 +245,6 @@ df_sel = players[players["player"].isin(selected)].set_index("player")
 
 st.subheader("Radar Chart")
 
-# -------------------------------
-# THEME-AWARE COLOR SYSTEM
-# -------------------------------
 def get_theme_colors():
     base = st.get_option("theme.base")  # "light" or "dark"
 
@@ -244,7 +274,12 @@ ui = get_theme_colors()
 # -------------------------------
 radar_metrics = list(universal_metrics)
 for name in selected:
-    pos = df_sel.loc[name].get("position")
+    if name not in df_sel.index:
+        continue
+    row = df_sel.loc[name]
+    if isinstance(row, pd.DataFrame):
+        row = row.iloc[0]
+    pos = row.get("position")
     pos_metrics = get_metrics_for_position(descriptors, pos)
     for m in pos_metrics:
         if m not in radar_metrics:
@@ -257,14 +292,19 @@ labels = [strip_prefix(m) for m in radar_metrics]
 # -------------------------------
 fig = go.Figure()
 
-# High‑contrast palette (works in both themes)
 player_palette = [
     "#1E90FF", "#FFA500", "#32CD32",
     "#FF6347", "#8A2BE2", "#00CED1"
 ]
 
 for idx, name in enumerate(selected):
+    if name not in df_sel.index:
+        continue
+
     row = df_sel.loc[name]
+    if isinstance(row, pd.DataFrame):
+        row = row.iloc[0]
+
     pos = row.get("position")
     league = row.get("league")
     group = players[(players["league"] == league) & (players["position"] == pos)]
@@ -284,7 +324,6 @@ for idx, name in enumerate(selected):
         pct = (series < val).mean() * 100
         pct_list.append(pct)
 
-    # SAFETY: ensure r-values are valid
     pct_list = [0 if pd.isna(v) else float(v) for v in pct_list]
 
     fig.add_trace(go.Scatterpolar(
@@ -349,16 +388,13 @@ st.plotly_chart(fig, use_container_width=True)
 
 st.subheader("Comparison Table")
 
-# Base data for comparison (raw from selection)
 base_df = df_sel.copy()
 
-# --- Per‑80 toggle UI ---
 with st.container():
     st.markdown("<div class='neon-card'>", unsafe_allow_html=True)
     per80_toggle = st.toggle("Show metrics per 80 minutes played", value=False)
     st.markdown("</div>", unsafe_allow_html=True)
 
-# Start with raw data
 df_comp = base_df.copy()
 
 # Detect minutes column
@@ -377,11 +413,9 @@ if per80_toggle and minutes_col is not None:
 
     for col in df_comp.columns:
 
-        # IGNORE RULE — these must NEVER change
         if col in ["Appearances", "Minutes Played"]:
             continue
 
-        # Skip raw minutes column, ID fields, etc.
         if col in [
             minutes_col,
             "Games Played",
@@ -389,11 +423,9 @@ if per80_toggle and minutes_col is not None:
         ]:
             continue
 
-        # Skip percentage metrics
         if is_percentage_metric(col):
             continue
 
-        # Apply per‑80 formula
         try:
             df_comp[col] = (df_comp[col] / mins) * 80
         except:
@@ -404,7 +436,12 @@ if per80_toggle and minutes_col is not None:
 # ---------------------------------------------------------
 all_metrics = list(universal_metrics)
 for name in selected:
-    pos = df_comp.loc[name].get("position")
+    if name not in df_comp.index:
+        continue
+    row = df_comp.loc[name]
+    if isinstance(row, pd.DataFrame):
+        row = row.iloc[0]
+    pos = row.get("position")
     pos_metrics = get_metrics_for_position(descriptors, pos)
     for m in pos_metrics:
         if m not in all_metrics:
@@ -416,7 +453,6 @@ for name in selected:
 if per80_toggle:
     all_metrics = [m for m in all_metrics if strip_prefix(m) != "Appearances"]
 
-# index uses *display* names
 display_index = [strip_prefix(m) for m in all_metrics]
 table = pd.DataFrame(index=display_index)
 
@@ -424,8 +460,14 @@ table = pd.DataFrame(index=display_index)
 # FILL TABLE WITH FORMATTED VALUES
 # ---------------------------------------------------------
 for name in selected:
+    if name not in df_comp.index:
+        continue
+    row = df_comp.loc[name]
+    if isinstance(row, pd.DataFrame):
+        row = row.iloc[0]
+
     table[name] = [
-        format_raw_value(strip_prefix(metric), df_comp.loc[name].get(metric, np.nan))
+        format_raw_value(strip_prefix(metric), row.get(metric, np.nan))
         for metric in all_metrics
     ]
 
@@ -433,15 +475,21 @@ for name in selected:
 # HIGHLIGHTING LOGIC
 # ---------------------------------------------------------
 style_map = pd.DataFrame("", index=table.index, columns=table.columns)
-green_count = {name: 0 for name in selected}
+green_count = {name: 0 for name in table.columns}
 
 for display_name, raw_metric in zip(table.index, all_metrics):
 
     values = {}
-    for name in selected:
-        raw_val = df_comp.loc[name].get(raw_metric, np.nan)
+    for name in table.columns:
+        base_name = name.replace("🌟 ", "")
+        if base_name not in df_comp.index:
+            continue
+        row = df_comp.loc[base_name]
+        if isinstance(row, pd.DataFrame):
+            row = row.iloc[0]
 
-        # Convert decimal percentages to whole numbers for ranking
+        raw_val = row.get(raw_metric, np.nan)
+
         if pd.notna(raw_val) and is_percentage_metric(raw_metric) and raw_val < 1:
             raw_val = raw_val * 100
 
@@ -454,13 +502,11 @@ for display_name, raw_metric in zip(table.index, all_metrics):
     if len(values) < 2:
         continue
 
-    # LOWER IS BETTER?
     if display_name in LOWER_IS_BETTER:
         ranked = sorted(values.items(), key=lambda x: x[1])
     else:
         ranked = sorted(values.items(), key=lambda x: x[1], reverse=True)
 
-    # Apply colours
     if len(ranked) >= 1:
         best = ranked[0][0]
         style_map.loc[display_name, best] = "color:#2ecc71; font-weight:700;"
@@ -480,7 +526,7 @@ for display_name, raw_metric in zip(table.index, all_metrics):
 max_greens = max(green_count.values()) if green_count else 0
 for name in list(table.columns):
     base_name = name.replace("🌟 ", "")
-    if green_count.get(base_name, 0) == max_greens and max_greens > 0:
+    if green_count.get(name, 0) == max_greens and max_greens > 0:
         if not name.startswith("🌟 "):
             table.rename(columns={name: f"🌟 {base_name}"}, inplace=True)
             style_map.rename(columns={name: f"🌟 {base_name}"}, inplace=True)
@@ -492,4 +538,3 @@ st.dataframe(
     table.style.apply(lambda row: style_map.loc[row.name], axis=1),
     use_container_width=True,
 )
-
