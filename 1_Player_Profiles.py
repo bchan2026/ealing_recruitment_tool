@@ -26,7 +26,6 @@ html, body, [class*="css"]  {
     --primary: #006400;   /* Dark Green */
 }
 
-
 body {
     background-color: var(--bg-dark);
     color: var(--text-light);
@@ -219,7 +218,43 @@ if not selected_players:
     st.info("Select at least one player.")
     st.stop()
 
-df_selected = players[players["player"].isin(selected_players)].set_index("player")
+# ---------------------------------------------------------
+# COLLAPSE MULTI‑COMPETITION PLAYERS (BY player_id IF AVAILABLE)
+# ---------------------------------------------------------
+
+df_selected_raw = players[players["player"].isin(selected_players)].copy()
+
+group_key = "player_id" if "player_id" in df_selected_raw.columns else "player"
+
+numeric_cols = df_selected_raw.select_dtypes(include="number").columns.tolist()
+
+percentage_cols = [
+    c
+    for c in numeric_cols
+    if ("%" in c) or ("percent" in c.lower()) or ("rate" in c.lower())
+]
+sum_cols = [c for c in numeric_cols if c not in percentage_cols]
+
+agg_dict = {}
+
+# Identity / categorical columns
+for col in ["player", "team", "league", "position"]:
+    if col in df_selected_raw.columns:
+        agg_dict[col] = "first"
+
+# Numeric aggregation
+for col in sum_cols:
+    agg_dict[col] = "sum"
+for col in percentage_cols:
+    agg_dict[col] = "mean"
+
+df_selected = (
+    df_selected_raw.groupby(group_key, as_index=False)
+    .agg(agg_dict)
+)
+
+# Use player name as index for display
+df_selected = df_selected.set_index("player")
 
 st.markdown("<hr>", unsafe_allow_html=True)
 
@@ -241,7 +276,15 @@ PROFILE_SECTIONS = [
 st.subheader("📇 Player Profiles")
 
 for name in selected_players:
+    if name not in df_selected.index:
+        continue
+
     row = df_selected.loc[name]
+
+    # Safety: if somehow multiple rows remain, take the first
+    if isinstance(row, pd.DataFrame):
+        row = row.iloc[0]
+
     position = row.get("position", "")
 
     with st.expander(f"{name} – {position}", expanded=True):
@@ -254,8 +297,10 @@ for name in selected_players:
 
         # Find position group key
         pos_key = None
+        pos_str = position if isinstance(position, str) else ""
         for key, group in position_groups.items():
-            if position and position.lower() in [p.lower() for p in group.get("positions", [])]:
+            positions_list = [p.lower() for p in group.get("positions", [])]
+            if pos_str and pos_str.lower() in positions_list:
                 pos_key = key
                 break
 
