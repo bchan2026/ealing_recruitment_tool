@@ -27,6 +27,7 @@ VALID_SHEETS = [
 # Columns that identify a player (must be kept from every sheet)
 ID_COLS = ["Player Name", "Team Name", "Normal Position"]
 
+
 def load_and_merge_players(folder_path="data"):
     all_players = None
 
@@ -45,7 +46,6 @@ def load_and_merge_players(folder_path="data"):
             league = f"{parts[2]} {parts[3]}"
         league = league.replace("_", " ").replace("-", " ")
 
-        # Start a dictionary of dataframes for this file
         sheet_frames = []
 
         for sheet in xls.sheet_names:
@@ -71,10 +71,11 @@ def load_and_merge_players(folder_path="data"):
             # Add league
             df["league"] = league
 
-            # Prefix metric columns with sheet name to avoid collisions
+            # Treat Player Id as a normal column; we’ll expose it later
             metric_cols = [c for c in df.columns if c not in ID_COLS + ["league"]]
             df = df[ID_COLS + ["league"] + metric_cols]
 
+            # Prefix metric columns with sheet name to avoid collisions
             df = df.rename(columns={c: f"{sheet}__{c}" for c in metric_cols})
 
             sheet_frames.append(df)
@@ -89,7 +90,7 @@ def load_and_merge_players(folder_path="data"):
                 merged_file,
                 df,
                 on=ID_COLS + ["league"],
-                how="outer"
+                how="outer",
             )
 
         # Append to global dataset
@@ -101,15 +102,23 @@ def load_and_merge_players(folder_path="data"):
     if all_players is None:
         return pd.DataFrame()
 
-    # Final collapse: one row per player
+    # Final collapse at file level: one row per (Player, Team, Position, League)
     all_players = all_players.groupby(ID_COLS + ["league"], as_index=False).first()
 
-    # Rename ID columns to match your Streamlit code
-    all_players = all_players.rename(columns={
+    # Rename ID columns to match Streamlit code
+    rename_map = {
         "Player Name": "player",
         "Team Name": "team",
         "Normal Position": "position",
-    })
+    }
+
+    # Expose Player Id as stable key if present
+    for cand in ["Player Id", "Player ID", "PlayerId"]:
+        if cand in all_players.columns:
+            rename_map[cand] = "player_id"
+            break
+
+    all_players = all_players.rename(columns=rename_map)
 
     return all_players
 
@@ -119,17 +128,31 @@ def load_descriptors(path="config/descriptors.yaml"):
         return yaml.safe_load(f)
 
 
-def get_metrics_for_position(descriptors: dict, position: str):
+def get_metrics_for_position(descriptors: dict, position):
     """
     Returns a FLAT list of metrics:
     - all universal metrics (flattened)
     - plus position‑specific metrics for the given position (flattened)
     """
 
+    # Normalise Series → scalar
+    if isinstance(position, pd.Series):
+        if position.empty:
+            return []
+        position = position.iloc[0]
+
+    # Handle None / NaN
+    if position is None:
+        return []
+    if isinstance(position, float) and pd.isna(position):
+        return []
+
+    # Normalise to string
+    position = str(position).strip()
     if not position:
         return []
 
-    position = position.lower().strip()
+    position_lower = position.lower()
 
     # 1) Flatten universal metrics
     universal_dict = descriptors.get("universal_metrics", {})
@@ -146,7 +169,7 @@ def get_metrics_for_position(descriptors: dict, position: str):
     for group_name, group_data in pos_groups.items():
         positions = [p.lower() for p in group_data.get("positions", [])]
 
-        if position in positions:
+        if position_lower in positions:
             metrics_dict = group_data.get("metrics", {})
             pos_flat = [
                 metric
